@@ -1,0 +1,173 @@
+package yazlab1;
+
+import java.io.File;
+import java.util.Scanner;
+import java.io.*;
+import net.sourceforge.tess4j.*;
+import java.io.FileWriter; 
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.*;
+import org.opencv.core.Core;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.core.Size;
+import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.imgproc.Imgproc;
+
+public class yazlab1 {
+	public static void main(String[] args) throws IOException, ClassNotFoundException, SQLException {
+
+		int sayac = 0;
+		int a = 0;
+		String isletmeadi = "asda";
+		String fisno = "NULL";
+		String tarih = "asda";
+		String[] urunadi = new String[10];
+		String[] urunfiyati = new String[10];
+		String topfiyat = "asda";
+		String data = null;
+		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
+		Mat croppedimage = Imgcodecs.imread("C:\\Users\\HAKAN BABA\\eclipse-workspace\\yazlab1\\images\\deneme3.jpg");
+		Mat resizeimage = new Mat();
+		Size sz = new Size(2930, 5300);
+		Imgproc.resize(croppedimage, resizeimage, sz);
+		Imgcodecs.imwrite("C:\\Users\\HAKAN BABA\\eclipse-workspace\\yazlab1\\images\\kes.jpg", resizeimage);
+
+		Mat img = new Mat();
+		img = Imgcodecs.imread("C:\\Users\\HAKAN BABA\\eclipse-workspace\\yazlab1\\images\\kes.jpg");
+
+		Imgcodecs.imwrite("preprocess/True_Image.png", img);
+
+		Mat imgGray = new Mat();
+		Imgproc.cvtColor(img, imgGray, Imgproc.COLOR_BGR2GRAY);
+
+		Imgcodecs.imwrite("preprocess/Gray.png", imgGray);
+
+		Mat imgGaussianBlur = new Mat();
+		Imgproc.GaussianBlur(imgGray, imgGaussianBlur, new Size(3, 3), 0);
+		Imgcodecs.imwrite("preprocess/gaussian_blur.png", imgGaussianBlur);
+
+		Mat imgAdaptiveThreshold = new Mat();
+		Imgproc.adaptiveThreshold(imgGaussianBlur, imgAdaptiveThreshold, 255, Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C,
+				Imgproc.THRESH_BINARY_INV, 99, 22);
+		Imgcodecs.imwrite("C:\\Users\\HAKAN BABA\\eclipse-workspace\\yazlab1\\images\\son.jpg", imgAdaptiveThreshold);
+
+		File imageFile = new File("C:\\Users\\HAKAN BABA\\eclipse-workspace\\yazlab1\\images\\son.jpg");
+		Tesseract instance = Tesseract.getInstance(); //
+		instance.setLanguage("tur");
+
+		try {
+
+			String result = instance.doOCR(imageFile);
+			try {
+				FileWriter myWriter = new FileWriter("C:\\Users\\HAKAN BABA\\eclipse-workspace\\yazlab1\\fis.txt");
+				myWriter.write(result);
+				myWriter.close();
+			} catch (IOException e) {
+				System.out.println("An error occurred.");
+				e.printStackTrace();
+			}
+
+		} catch (TesseractException e) {
+			System.err.println(e.getMessage());
+		}
+
+		try {
+			File fis = new File("C:\\Users\\HAKAN BABA\\eclipse-workspace\\yazlab1\\fis.txt");
+			Scanner myReader = new Scanner(fis);
+
+			while (myReader.hasNextLine()) {
+
+				data = myReader.nextLine();
+
+				if (sayac == 0) {
+
+					isletmeadi = data;
+
+				}
+
+				if (data.startsWith("TARIH")) {
+					String[] split1 = data.split(": ");
+					String[] split2 = split1[1].split(" ");
+					tarih = split2[0];
+
+				}
+				if (data.startsWith("ÖRNEK ÜRÜN") || data.startsWith("ÖRNEK 0000")) {
+					String[] urunler = data.split(" ");
+
+					urunadi[a] = urunler[0] + urunler[1] + urunler[2];
+					urunfiyati[a] = urunler[3];
+
+					a++;
+					if (a == 5) {
+
+						a = 4;
+					}
+
+				}
+				if (data.contains("TOPLAM")) {
+					String[] kelimeler = data.split(" ");
+
+					topfiyat = kelimeler[2];
+
+				}
+				if (data.contains("SATIS ND")) {
+					String[] kelimeler = data.split(" ");
+
+					fisno = kelimeler[3];
+
+				}
+				sayac++;
+			}
+
+			myReader.close();
+		} catch (FileNotFoundException e) {
+			System.out.println("An error occurred.");
+			e.printStackTrace();
+		}
+
+		try {
+			Class.forName("com.mysql.jdbc.Driver");
+			Connection con = DriverManager.getConnection("jdbc:mysql://localhost:3306/yazlab1", "root", "kt6969kt");
+
+			Statement stmt = con.createStatement();
+
+			for (int i = 0; i < a + 1; i++) {
+				String sorgu = String.format(
+						"INSERT INTO `fis` (`isletmeadi`,`fisno`, `tarih`, `urunadi`,`urunfiyati`,`toplamfiyat`) VALUES ('%s','%s','%s','%s','%s','%s')",
+						isletmeadi, fisno, tarih, urunadi[i], urunfiyati[i], topfiyat);
+				stmt.executeUpdate(sorgu);
+
+			}
+			String sql = "SELECT * FROM fis";
+
+			ResultSet rs = stmt.executeQuery(sql);
+
+			while (rs.next()) {
+
+				String isletmeadi2 = rs.getString("isletmeadi");
+				String fisno2 = rs.getString("fisno");
+				String tarih2 = rs.getString("tarih");
+				String urunadi2 = rs.getString("urunadi");
+				String urunfiyati2 = rs.getString("urunfiyati");
+				String toplamfiyat2 = rs.getString("toplamfiyat");
+
+				System.out.println(isletmeadi2 + "\t" + fisno2 + "\t" + tarih2 + "\t" + urunadi2 + "\t" + urunfiyati2
+						+ "\t" + toplamfiyat2);
+
+			}
+
+		} catch (Exception e) {
+			System.out.println(e);
+		}
+
+	
+
+	}
+
+}
